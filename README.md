@@ -176,3 +176,7 @@ Visualize results using Plotly or save forecasts for further analysis.
   - Check the feature scaling logic in the preprocessing step. Ensure all numerical columns are properly scaled.
 
 ---
+## Contact
+
+Email: donny.landscape@gmail.com
+Twitter: @donny_sant71053
