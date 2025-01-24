@@ -1,7 +1,6 @@
 # Step-by-Step Guide for Using the LTSM Project in Google Colab
 
-This document provides a detailed guide on how to use the provided LTSM project code in Google Colab for the Hiring Team.
-
+This document provides a detailed guide on how to use the provided LTSM project code in Google Colab.
 ---
 
 ## Table of Contents
