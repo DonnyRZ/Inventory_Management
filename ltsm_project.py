@@ -690,7 +690,7 @@ def tune_hyperparameters(train_loader, val_loader, input_size, device):
     
     return best_params, tuning_results
 
-# Create validation loader (add this before tuning)
+# Create validation loader
 from torch.utils.data import random_split
 dataset_size = len(train_dataset)
 train_size = int(0.8 * dataset_size)
