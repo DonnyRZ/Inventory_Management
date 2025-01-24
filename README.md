@@ -1,110 +1,178 @@
-# Step-by-Step Guide for Using the LTSM Project in Google Colab
----
+# How to Use the LTSM Stock Prediction Code
 
-## Table of Contents
-1. [Prerequisites](#prerequisites)
-2. [Uploading the Code to Colab](#uploading-the-code-to-colab)
-3. [Setting Up the Environment](#setting-up-the-environment)
-4. [Uploading and Preprocessing the Dataset](#uploading-and-preprocessing-the-dataset)
-5. [Training and Testing the Model](#training-and-testing-the-model)
-6. [Visualizing Results](#visualizing-results)
+## Introduction
+
+This guide provides a step-by-step tutorial on how to use the LSTM-based stock prediction code. The code trains a Long Short-Term Memory (LSTM) model to predict stock inventory levels based on historical data and features. It is designed to be flexible and extensible for various time-series prediction tasks.
 
 ---
 
-### 1. Prerequisites
+## Prerequisites
 
-Before you start, ensure the following:
-- You have a Google account.
-- Your dataset is available in `.xlsx` format.
-- Basic familiarity with Google Colab and Python is recommended.
+Ensure the following requirements are met before using the code:
 
-### 2. Uploading the Code to Colab
-
-1. Download the provided `ltsm_project.py` file to your local machine.
-2. Open [Google Colab](https://colab.research.google.com/).
-3. Create a new notebook or open an existing one.
-4. Upload the `ltsm_project.py` file by selecting `Files` (on the left sidebar), then clicking the upload button. Alternatively, use the following code to upload:
-   ```python
-   from google.colab import files
-   uploaded = files.upload()
+1. **Python Environment**:
+   - Python version 3.7+
+2. **Libraries**:
+   Install the required libraries by running:
+   ```bash
+   pip install openpyxl statsmodels pandas numpy torch matplotlib scikit-learn plotly tqdm
    ```
-5. After uploading, verify that the file is visible in the file explorer.
-
-### 3. Setting Up the Environment
-
-1. Install the required dependencies:
-   ```python
-   !pip install openpyxl statsmodels plotly tqdm torch torchvision
-   ```
-2. Import the necessary modules by running the following code:
-   ```python
-   import pandas as pd
-   import numpy as np
-   import torch
-   import torch.nn as nn
-   from torch.utils.data import Dataset, DataLoader
-   from sklearn.preprocessing import StandardScaler
-   ```
-3. Run the `ltsm_project.py` file in your Colab notebook by using:
-   ```python
-   %run ltsm_project.py
-   ```
-
-### 4. Uploading and Preprocessing the Dataset
-
-1. Ensure your dataset contains columns like `Date`, `Sales Channel`, `Farm Size`, `Brand`, and other features mentioned in the code.
-2. Upload your dataset using the following code snippet:
-   ```python
-   from google.colab import files
-   uploaded = files.upload()
-   file_name = list(uploaded.keys())[0]
-   df = pd.read_excel(file_name, sheet_name=0)
-   ```
-3. The preprocessing steps (such as one-hot encoding and scaling) are automatically handled by the code.
-   - Verify that your dataset meets the column requirements mentioned in the code.
-
-### 5. Training and Testing the Model
-
-1. The code automatically splits the data into training and testing sets based on an 80-20 split.
-2. Define your batch size, number of epochs, and other configurations directly in the code.
-3. To train the model, run the `train_model` function:
-   ```python
-   history = train_model(model, train_loader, test_loader, num_epochs=200)
-   ```
-4. Monitor the training progress using the `tqdm` progress bar displayed in the output.
-5. The best-performing model weights are saved as `best_model.pth`.
-
-### 6. Visualizing Results
-
-1. The project includes a `StockVisualizer` class to analyze and visualize results.
-2. Initialize the visualizer as follows:
-   ```python
-   visualizer = StockVisualizer(
-       model=model,
-       train_loader=train_loader,
-       test_loader=test_loader,
-       scalers=scalers,  # Scalers defined during preprocessing
-       train_series=y_train_full,  # Target values from training data
-       dates=df['Date'].values  # Date column
-   )
-   ```
-3. Launch the interactive dashboard to visualize:
-   ```python
-   visualizer.create_interactive_dashboard()
-   ```
-4. Use the dashboard to explore metrics, residuals, predictions, and more.
+3. **Data**:
+   Prepare a dataset in `.xlsx` format. The dataset must include the following columns:
+   - `Date`: Timestamps for data points.
+   - `Quantity in Stock (liters/kg)`: Target variable.
+   - Other categorical or numerical features to use for prediction.
 
 ---
 
-### Additional Notes
+## Code Overview
 
-- If you encounter any errors related to dataset formatting, ensure that your columns align with the script's preprocessing steps.
-- You can modify hyperparameters such as the learning rate, dropout rate, and number of layers directly in the `LSTMStockPredictor` class.
-- The dashboard requires the `plotly` library; ensure it is installed using the steps in [Section 3](#setting-up-the-environment).
+### Main Steps
+
+1. **Data Preparation**:
+   - Loads data from an Excel file.
+   - Preprocesses the data by handling categorical variables, scaling features, and creating time-windowed sequences.
+2. **Model Training**:
+   - Trains an LSTM model with weight dropout to enhance robustness.
+   - Uses a custom training loop with learning rate scheduling and mixed precision training.
+3. **Evaluation**:
+   - Evaluates the model using metrics like MAE, RMSE, SMAPE, and R².
+   - Compares the model's performance against baseline methods.
+4. **Visualization**:
+   - Generates interactive dashboards for model insights.
+5. **Hyperparameter Tuning**:
+   - Performs random search across a predefined parameter grid.
+   - Saves the best model and tuning results for reference.
+6. **Production Inference**:
+   - Implements a forecasting pipeline to generate multi-step predictions for specific product-location groups.
 
 ---
 
-### Contact for Support
-For any issues or questions, reach out to the project owner email: donny.landscape@gmail.com, or Twitter: @donny_sant71053
+## How to Use
 
+### Step 1: Upload Your Data
 
+Ensure your data is prepared in `.xlsx` format. When prompted, upload your file during the script execution.
+
+### Step 2: Run the Code
+
+Follow these steps:
+
+1. **Clone the Repository**:
+   Clone or download the repository containing the code.
+
+   ```bash
+   git clone <repository-url>
+   cd <repository-folder>
+   ```
+
+2. **Run the Script**:
+   Open the script in an environment like Jupyter Notebook or Colab. If using Colab:
+
+   - Upload the code file and run it step-by-step.
+   - The following line will prompt you to upload your dataset:
+     ```python
+     uploaded = files.upload()
+     ```
+
+3. **Inspect Outputs**:
+   After training, inspect the training/testing loss and metrics printed in the output.
+
+### Step 3: Customize Hyperparameters
+
+Modify the following parameters in the script as needed:
+
+- **Window Size**: Adjust the `global_window_size` for sequence length.
+- **LSTM Parameters**: Configure `hidden_size`, `num_layers`, and `dropout` in the `LSTMStockPredictor` class.
+- **Learning Rate**: Adjust the learning rate in the optimizer setup.
+
+### Step 4: Hyperparameter Tuning
+
+Run the hyperparameter tuning function to optimize model performance:
+
+```python
+best_params, tuning_results = tune_hyperparameters(
+    train_loader_tune,
+    val_loader,
+    INPUT_SIZE,
+    DEVICE
+)
+print("Best parameters:", best_params)
+```
+
+The best parameters will be saved and used for final training.
+
+### Step 5: Evaluate Model
+
+The trained model will be saved as `best_model.pth`. Use the evaluation pipeline to generate metrics and visualize predictions.
+
+### Step 6: Visualization
+
+Run the visualization dashboard to interactively explore results:
+
+```python
+visualizer.create_interactive_dashboard()
+```
+
+### Step 7: Production Inference
+
+Use the `StockForecaster` class to perform multi-step forecasting:
+
+```python
+forecaster = StockForecaster(
+    model_path="best_tuned_model.pth",
+    scalers_path="group_scalers.pkl",
+    device=DEVICE
+)
+
+forecast = forecaster.predict(
+    group_key="Organic Milk||Maharashtra",
+    recent_data=sample_data,
+    forecast_steps=14
+)
+```
+
+Visualize results using Plotly or save forecasts for further analysis.
+
+---
+
+## Advanced Options
+
+1. **Add New Features**:
+   Add more relevant columns to your dataset to improve predictions. Ensure you update the preprocessing section to include the new features.
+
+2. **Baseline Comparisons**:
+   Use the provided `BaselineModels` class to compare the LSTM model with:
+
+   - Persistence (last value prediction).
+   - Moving Average.
+   - Seasonal Baselines.
+
+3. **Distributed Training**:
+   The code supports multi-GPU training. Ensure PyTorch detects multiple GPUs:
+
+   ```python
+   model = nn.DataParallel(model)
+   ```
+
+---
+
+## Troubleshooting
+
+- **Insufficient Data**:
+
+  - Ensure each product-location group has enough data to create sequences.
+  - Increase the sequence window size only if sufficient data is available.
+
+- **Slow Training**:
+
+  - Use GPU acceleration. Verify the environment supports CUDA:
+    ```python
+    DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
+    ```
+
+- **Scaling Issues**:
+
+  - Check the feature scaling logic in the preprocessing step. Ensure all numerical columns are properly scaled.
+
+---
