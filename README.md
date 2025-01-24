@@ -108,5 +108,6 @@ Before you start, ensure the following:
 ---
 
 ### Contact for Support
-For any issues or questions, reach out to the project owner or the Hiring Team's technical lead.
+For any issues or questions, reach out to the project owner email: donny.landscape@gmail.com, or Twitter: @donny_sant71053
+
 
