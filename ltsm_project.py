@@ -574,3 +574,317 @@ visualizer = StockVisualizer(
 
 # Launch dashboard
 visualizer.create_interactive_dashboard()
+
+# Step 21: Comprehensive Hyperparameter Tuning
+def tune_hyperparameters(train_loader, val_loader, input_size, device):
+    # Define search space
+    param_grid = {
+        'hidden_size': [128, 256, 512],
+        'num_layers': [1, 2, 3],
+        'dropout': [0.2, 0.3, 0.4],
+        'learning_rate': [1e-3, 2e-3, 5e-3],
+        'weight_decay': [0, 1e-4, 1e-3]
+    }
+    
+    best_params = None
+    best_loss = float('inf')
+    trial_results = []
+    
+    # Random search with 10 combinations
+    for trial in range(10):
+        print(f"\n=== Trial {trial+1}/10 ===")
+        params = {
+            'hidden_size': np.random.choice(param_grid['hidden_size']),
+            'num_layers': np.random.choice(param_grid['num_layers']),
+            'dropout': np.random.choice(param_grid['dropout']),
+            'learning_rate': np.random.choice(param_grid['learning_rate']),
+            'weight_decay': np.random.choice(param_grid['weight_decay'])
+        }
+        
+        # Initialize model
+        model = LSTMStockPredictor(
+            input_size=input_size,
+            hidden_size=params['hidden_size'],
+            num_layers=params['num_layers'],
+            dropout=params['dropout']
+        ).to(device)
+        
+        # Optimizer and scheduler
+        optimizer = torch.optim.AdamW(
+            model.parameters(),
+            lr=params['learning_rate'],
+            weight_decay=params['weight_decay']
+        )
+        
+        scheduler = torch.optim.lr_scheduler.ReduceLROnPlateau(
+            optimizer, 
+            patience=3,
+            verbose=True
+        )
+        
+        # Training loop
+        num_epochs = 50
+        early_stop_patience = 5
+        best_val_loss = float('inf')
+        patience_counter = 0
+        
+        for epoch in range(num_epochs):
+            model.train()
+            train_loss = 0
+            
+            # Training phase
+            for features, targets, _ in train_loader:
+                features = features.to(device)
+                targets = targets.to(device)
+                
+                optimizer.zero_grad()
+                predictions, _ = model(features)
+                loss = criterion(predictions, targets)
+                loss.backward()
+                nn.utils.clip_grad_norm_(model.parameters(), 0.5)
+                optimizer.step()
+                train_loss += loss.item()
+            
+            # Validation phase
+            model.eval()
+            val_loss = 0
+            with torch.no_grad():
+                for features, targets, _ in val_loader:
+                    features = features.to(device)
+                    targets = targets.to(device)
+                    predictions, _ = model(features)
+                    val_loss += criterion(predictions, targets).item()
+            
+            avg_train_loss = train_loss / len(train_loader)
+            avg_val_loss = val_loss / len(val_loader)
+            scheduler.step(avg_val_loss)
+            
+            # Early stopping check
+            if avg_val_loss < best_val_loss:
+                best_val_loss = avg_val_loss
+                patience_counter = 0
+                torch.save(model.state_dict(), f"best_trial_{trial}.pth")
+            else:
+                patience_counter += 1
+                if patience_counter >= early_stop_patience:
+                    break
+            
+            print(f"Epoch {epoch+1}: Train Loss {avg_train_loss:.4f} | Val Loss {avg_val_loss:.4f}")
+        
+        # Store trial results
+        trial_results.append({
+            'params': params,
+            'val_loss': best_val_loss
+        })
+        
+        # Update best parameters
+        if best_val_loss < best_loss:
+            best_loss = best_val_loss
+            best_params = params
+            # Save best model
+            torch.save(model.state_dict(), "best_tuned_model.pth")
+    
+    # Save tuning results
+    tuning_results = pd.DataFrame(trial_results)
+    tuning_results.to_csv("hyperparameter_tuning_results.csv", index=False)
+    
+    return best_params, tuning_results
+
+# Create validation loader (add this before tuning)
+from torch.utils.data import random_split
+dataset_size = len(train_dataset)
+train_size = int(0.8 * dataset_size)
+val_size = dataset_size - train_size
+train_subset, val_subset = random_split(train_dataset, [train_size, val_size])
+
+train_loader_tune = DataLoader(
+    train_subset, 
+    batch_size=64, 
+    shuffle=True,
+    pin_memory=True
+)
+
+val_loader = DataLoader(
+    val_subset,
+    batch_size=64,
+    shuffle=False,
+    pin_memory=True
+)
+
+# Run tuning
+best_params, tuning_results = tune_hyperparameters(
+    train_loader_tune,
+    val_loader,
+    INPUT_SIZE,
+    DEVICE
+)
+
+print("Best parameters:", best_params)
+
+# Step 22: Production-Grade Inference Pipeline
+class StockForecaster:
+    def __init__(self, model_path, scalers_path, device='cpu'):
+        self.device = device
+        self.scalers = self._load_scalers(scalers_path)
+        self.model = self._load_model(model_path)
+        self.window_size = global_window_size  # From earlier processing
+        
+    def _load_scalers(self, path):
+        with open(path, 'rb') as f:
+            return pickle.load(f)
+        
+    def _load_model(self, path):
+        model = LSTMStockPredictor(
+            input_size=INPUT_SIZE,
+            hidden_size=best_params['hidden_size'],
+            num_layers=best_params['num_layers'],
+            dropout=best_params['dropout']
+        )
+        model.load_state_dict(torch.load(path, map_location=self.device))
+        return model.to(self.device).eval()
+    
+    def _prepare_input(self, group_key, recent_data):
+        """Prepare input sequence for forecasting"""
+        if group_key not in self.scalers:
+            raise ValueError(f"No scalers found for group {group_key}")
+            
+        # Scale features
+        feat_scaler = self.scalers[group_key]['feature']
+        scaled_features = feat_scaler.transform(recent_data)
+        
+        # Ensure correct window size
+        if len(scaled_features) < self.window_size:
+            raise ValueError(f"Need at least {self.window_size} historical data points")
+            
+        return torch.FloatTensor(scaled_features[-self.window_size:]).unsqueeze(0).to(self.device)
+    
+    def predict(self, group_key, recent_data, forecast_steps=14):
+        """
+        Generate multi-step forecasts for a specific product-location group
+        
+        Args:
+            group_key (str): Format "Product Name||Location"
+            recent_data (DataFrame): Raw historical data for the group
+            forecast_steps (int): Number of future steps to predict
+            
+        Returns:
+            dict: Predictions with timestamps and confidence intervals
+        """
+        # Validate input
+        if group_key not in self.scalers:
+            return {"error": "Group not found in trained models"}
+            
+        # Prepare sequence
+        input_seq = self._prepare_input(group_key, recent_data)
+        
+        # Get scalers
+        targ_scaler = self.scalers[group_key]['target']
+        
+        # Generate predictions
+        predictions = []
+        current_seq = input_seq.clone()
+        confidence_intervals = []
+        
+        with torch.no_grad(), torch.cuda.amp.autocast():
+            for _ in range(forecast_steps):
+                pred, _ = self.model(current_seq)
+                pred_np = pred.cpu().numpy().flatten()
+                
+                # Inverse transform prediction
+                pred_raw = targ_scaler.inverse_transform(pred_np.reshape(-1, 1)).flatten()
+                predictions.extend(pred_raw)
+                
+                # Estimate uncertainty (simplified example)
+                confidence = 0.1 * abs(pred_raw)  # Replace with actual uncertainty estimation
+                confidence_intervals.extend(confidence)
+                
+                # Update sequence with predicted value
+                if current_seq.shape[2] > 1:  # If using autoregressive features
+                    new_row = torch.cat([
+                        current_seq[:, 1:, :],  # Remove oldest timestep
+                        torch.cat([pred] + [torch.zeros(1, 1, device=self.device)] * 
+                                 (current_seq.shape[2]-1), dim=-1).unsqueeze(1)
+                    ], dim=1)
+                else:
+                    new_row = torch.cat([
+                        current_seq[:, 1:, :],
+                        pred.unsqueeze(0).unsqueeze(0)
+                    ], dim=1)
+                
+                current_seq = new_row
+        
+        # Generate future dates
+        last_date = pd.to_datetime(recent_data['Date'].iloc[-1])
+        dates = pd.date_range(
+            start=last_date + pd.DateOffset(days=1),
+            periods=forecast_steps
+        )
+        
+        return {
+            'dates': dates.strftime('%Y-%m-%d').tolist(),
+            'predictions': predictions,
+            'confidence_intervals': confidence_intervals,
+            'group': group_key
+        }
+    
+    def batch_predict(self, group_data_map, forecast_steps=14):
+        """Process multiple groups at once"""
+        results = {}
+        for group_key, data in group_data_map.items():
+            try:
+                results[group_key] = self.predict(group_key, data, forecast_steps)
+            except Exception as e:
+                results[group_key] = {"error": str(e)}
+        return results
+
+# Example Usage
+if __name__ == "__main__":
+    # Initialize forecaster
+    forecaster = StockForecaster(
+        model_path="best_tuned_model.pth",
+        scalers_path="group_scalers.pkl",
+        device=DEVICE
+    )
+    
+    # Example: Load recent data for a specific product-location
+    sample_group = "Organic Milk||Maharashtra"  # Format "Product||Location"
+    sample_data = df[
+        (df['Product Name'] == "Organic Milk") & 
+        (df['Location'] == "Maharashtra")
+    ].sort_values('Date').tail(global_window_size + 7)  # Get recent data
+    
+    # Generate forecast
+    forecast = forecaster.predict(
+        group_key=sample_group,
+        recent_data=sample_data,
+        forecast_steps=14
+    )
+    
+    # Visualize results
+    fig = go.Figure()
+    fig.add_trace(go.Scatter(
+        x=forecast['dates'], 
+        y=forecast['predictions'],
+        name='Forecast',
+        line=dict(color='#FF6F00')
+    ))
+    fig.add_trace(go.Scatter(
+        x=forecast['dates'],
+        y=np.array(forecast['predictions']) + forecast['confidence_intervals'],
+        line=dict(color='rgba(255,111,0,0.2)'),
+        name='Upper Bound'
+    ))
+    fig.add_trace(go.Scatter(
+        x=forecast['dates'],
+        y=np.array(forecast['predictions']) - forecast['confidence_intervals'],
+        fill='tonexty',
+        line=dict(color='rgba(255,111,0,0.2)'),
+        name='Lower Bound'
+    ))
+    fig.update_layout(
+        title=f"14-Day Forecast for {sample_group}",
+        xaxis_title="Date",
+        yaxis_title="Quantity in Stock (liters/kg)",
+        template="plotly_dark"
+    )
+    fig.show()
