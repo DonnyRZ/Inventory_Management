@@ -129,5 +129,4 @@ Before you begin, ensure the following:
 - **Dataset Errors:** Check for correct file format and consistent data structure.
 - **Runtime Errors:** Verify each code block runs without skipping prior steps.
 
-For additional support, refer to Google Colab documentation or open an issue in the relevant GitHub repository.
-
+For additional support, please email me on donny.landscape@gmail.com
