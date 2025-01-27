@@ -1,182 +1,161 @@
-# How to Use the LTSM Stock Prediction Code
+Here's a comprehensive guide for the `README.md` file for using this code in Google Colab:
 
-## Introduction
+```markdown
+# Inventory Prediction with Physics-Aware Processing
 
-This guide provides a step-by-step tutorial on how to use the LSTM-based stock prediction code. The code trains a Long Short-Term Memory (LSTM) model to predict stock inventory levels based on historical data and features. It is designed to be flexible and extensible for various time-series prediction tasks.
-
----
-
-## Prerequisites
-
-Ensure the following requirements are met before using the code:
-
-1. **Python Environment**:
-   - Python version 3.7+
-2. **Libraries**:
-   Install the required libraries by running:
-   ```bash
-   pip install openpyxl statsmodels pandas numpy torch matplotlib scikit-learn plotly tqdm
-   ```
-3. **Data**:
-   Prepare a dataset in `.xlsx` format. The dataset must include the following columns:
-   - `Date`: Timestamps for data points.
-   - `Quantity in Stock (liters/kg)`: Target variable.
-   - Other categorical or numerical features to use for prediction.
+This project demonstrates a physics-aware inventory forecasting pipeline using Google Colab and PyTorch. The system handles temporal feature engineering, leakage-proof data preprocessing, and builds a robust transformer model to predict inventory levels while respecting physical constraints.
 
 ---
 
-## Code Overview
+## Getting Started
 
-### Main Steps
+### Step 1: Open the Notebook in Google Colab
+1. Save the code from this repository as a `.ipynb` file (Jupyter Notebook).
+2. Upload the notebook to your Google Drive or directly open it in [Google Colab](https://colab.research.google.com/).
 
-1. **Data Preparation**:
-   - Loads data from an Excel file.
-   - Preprocesses the data by handling categorical variables, scaling features, and creating time-windowed sequences.
-2. **Model Training**:
-   - Trains an LSTM model with weight dropout to enhance robustness.
-   - Uses a custom training loop with learning rate scheduling and mixed precision training.
-3. **Evaluation**:
-   - Evaluates the model using metrics like MAE, RMSE, SMAPE, and R².
-   - Compares the model's performance against baseline methods.
-4. **Visualization**:
-   - Generates interactive dashboards for model insights.
-5. **Hyperparameter Tuning**:
-   - Performs random search across a predefined parameter grid.
-   - Saves the best model and tuning results for reference.
-6. **Production Inference**:
-   - Implements a forecasting pipeline to generate multi-step predictions for specific product-location groups.
+---
+
+## Installation and Setup
+
+### Install Required Libraries
+Run the following command in your Colab environment to install the necessary Python libraries:
+```python
+!pip install openpyxl statsmodels --quiet
+!pip install --upgrade torch torchvision --quiet
+```
 
 ---
 
 ## How to Use
 
-### Step 1: Upload Your Data
-
-Ensure your data is prepared in `.xlsx` format. When prompted, upload your file during the script execution.
-
-### Step 2: Run the Code
-
-Follow these steps:
-
-1. **Clone the Repository**:
-   Clone or download the repository containing the code.
-
-   ```bash
-   git clone <repository-url>
-   cd <repository-folder>
-   ```
-
-2. **Run the Script**:
-   Open the script in an environment like Jupyter Notebook or Colab. If using Colab:
-
-   - Upload the code file and run it step-by-step.
-   - The following line will prompt you to upload your dataset:
-     ```python
-     uploaded = files.upload()
-     ```
-
-3. **Inspect Outputs**:
-   After training, inspect the training/testing loss and metrics printed in the output.
-
-### Step 3: Customize Hyperparameters
-
-Modify the following parameters in the script as needed:
-
-- **Window Size**: Adjust the `global_window_size` for sequence length.
-- **LSTM Parameters**: Configure `hidden_size`, `num_layers`, and `dropout` in the `LSTMStockPredictor` class.
-- **Learning Rate**: Adjust the learning rate in the optimizer setup.
-
-### Step 4: Hyperparameter Tuning
-
-Run the hyperparameter tuning function to optimize model performance:
-
-```python
-best_params, tuning_results = tune_hyperparameters(
-    train_loader_tune,
-    val_loader,
-    INPUT_SIZE,
-    DEVICE
-)
-print("Best parameters:", best_params)
-```
-
-The best parameters will be saved and used for final training.
-
-### Step 5: Evaluate Model
-
-The trained model will be saved as `best_model.pth`. Use the evaluation pipeline to generate metrics and visualize predictions.
-
-### Step 6: Visualization
-
-Run the visualization dashboard to interactively explore results:
-
-```python
-visualizer.create_interactive_dashboard()
-```
-
-### Step 7: Production Inference
-
-Use the `StockForecaster` class to perform multi-step forecasting:
-
-```python
-forecaster = StockForecaster(
-    model_path="best_tuned_model.pth",
-    scalers_path="group_scalers.pkl",
-    device=DEVICE
-)
-
-forecast = forecaster.predict(
-    group_key="Organic Milk||Maharashtra",
-    recent_data=sample_data,
-    forecast_steps=14
-)
-```
-
-Visualize results using Plotly or save forecasts for further analysis.
-
----
-
-## Advanced Options
-
-1. **Add New Features**:
-   Add more relevant columns to your dataset to improve predictions. Ensure you update the preprocessing section to include the new features.
-
-2. **Baseline Comparisons**:
-   Use the provided `BaselineModels` class to compare the LSTM model with:
-
-   - Persistence (last value prediction).
-   - Moving Average.
-   - Seasonal Baselines.
-
-3. **Distributed Training**:
-   The code supports multi-GPU training. Ensure PyTorch detects multiple GPUs:
-
+### Step 1: Upload Your Dataset
+1. Ensure your dataset is in `.xlsx` format and contains the following columns:
+   - `Date` (in YYYY-MM-DD format)
+   - `Product Name`
+   - `Quantity in Stock (liters/kg)`
+   - Additional categorical features (`Sales Channel`, `Farm Size`, etc.)
+2. Upload the file using:
    ```python
-   model = nn.DataParallel(model)
+   from google.colab import files
+   uploaded = files.upload()
+   ```
+   Select your `.xlsx` file when prompted.
+
+---
+
+### Step 2: Data Preprocessing
+The dataset is preprocessed with the following steps:
+1. **Date Parsing and Sorting**: Converts `Date` to datetime, and sorts by `Product Name` and `Date`.
+2. **Zero Handling with Physical Constraints**: Replaces zero values in the target column with the minimum non-zero value for the same product.
+3. **Temporal Features**: Adds `day_of_week`, `day_of_month`, and `days_since_first` features.
+
+Run the preprocessing script:
+```python
+df = pd.read_excel(file_name, sheet_name=0)
+# Preprocessing code here
+```
+
+---
+
+### Step 3: Splitting the Dataset
+Perform a temporal split to divide the data into training and testing sets:
+```python
+train_df, test_df = temporal_product_split(df)
+```
+
+---
+
+### Step 4: Feature Engineering
+1. **Rolling Aggregations**: Compute `weekly_median` and `monthly_max` for each product.
+2. **Lag Features**: Generate lagged values (`lag_3`, `lag_7`, `lag_14`) for the target variable.
+
+Generate features:
+```python
+train_df = create_physical_features(train_df)
+test_df = create_physical_features(test_df, train_ref=train_df)
+```
+
+---
+
+### Step 5: Encoding and Scaling
+1. Encode categorical variables:
+   ```python
+   train_df[col] = oe.fit_transform(train_df[[col]].astype(str))
+   test_df[col] = oe.transform(test_df[[col]].astype(str))
+   ```
+2. Scale the target variable using product-specific `RobustScaler`:
+   ```python
+   train_df['scaled_target'] = product_scale(train_df)
+   test_df['scaled_target'] = product_scale(test_df)
    ```
 
 ---
 
-## Troubleshooting
-
-- **Insufficient Data**:
-
-  - Ensure each product-location group has enough data to create sequences.
-  - Increase the sequence window size only if sufficient data is available.
-
-- **Slow Training**:
-
-  - Use GPU acceleration. Verify the environment supports CUDA:
-    ```python
-    DEVICE = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
-    ```
-
-- **Scaling Issues**:
-
-  - Check the feature scaling logic in the preprocessing step. Ensure all numerical columns are properly scaled.
+### Step 6: Sequence Generation
+Prepare sequences for the transformer model:
+```python
+X_train_num, X_train_cat, y_train, train_products = create_sequences(train_df)
+X_test_num, X_test_cat, y_test, test_products = create_sequences(test_df)
+```
+Convert the sequences into PyTorch tensors:
+```python
+X_train_num_tensor = torch.FloatTensor(X_train_num)
+X_train_cat_tensor = torch.LongTensor(X_train_cat)
+y_train_tensor = torch.FloatTensor(y_train)
+```
 
 ---
-## Contact
 
-Email: donny.landscape@gmail.com
-Twitter: @donny_sant71053
+### Step 7: Model Definition
+The model is a transformer-based neural network:
+```python
+class InventoryTransformer(nn.Module):
+    def __init__(self, ...):
+        # Model architecture
+```
+This model uses:
+- **Embeddings** for products and categorical variables.
+- **Transformers** for temporal pattern recognition.
+- **Physical Constraints**: Ensures outputs are non-negative and below maximum capacity.
+
+---
+
+### Step 8: Model Training
+Define a training loop to optimize the model:
+```python
+# Training loop here
+```
+
+---
+
+### Step 9: Evaluation
+Evaluate the model using Mean Absolute Error (MAE) and plot predictions vs. actual values:
+```python
+# Evaluation code
+```
+
+---
+
+## Key Features
+- **Physics-Aware Processing**: Enforces physical constraints such as non-negative inventory.
+- **Temporal Feature Engineering**: Captures time-based patterns with lag features and rolling aggregates.
+- **Transformer Model**: Employs attention mechanisms for robust inventory forecasting.
+- **Scalability**: Designed to handle large datasets with multiple products.
+
+---
+
+## Contributing
+Feel free to open issues or submit pull requests for enhancements or bug fixes.
+
+---
+
+## License
+This project is licensed under the MIT License.
+
+---
+
+## Contact
+For queries or support, please reach out via the Issues tab or email [your-email@example.com].
+```
+
+This `README.md` provides a structured guide for users to get started with the code in Google Colab, along with detailed instructions for installation, preprocessing, and model implementation.
